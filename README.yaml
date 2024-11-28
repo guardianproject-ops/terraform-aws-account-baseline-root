@@ -1,0 +1,32 @@
+name: terraform-aws-account-baseline-root
+license: GPL3
+gitlab_repo: guardianproject-ops/terraform-aws-account-baseline-root
+
+description: Terraform module for bringing an AWS Control Tower management account into governance.
+
+introduction: |-
+
+  This module should be used on root/management accounts where AWS Control
+  Tower is enabled and the AWS Org resides. It sets up a security and alerting baseline.
+
+usage: |-
+
+  You can use the [`generate_imports.py`](./generate_imports.py) script to generate child_accounts and imports for your existing AWS Org.
+
+  ```terraform
+  module "module" {
+    source = "git::https://gitlab.com/guardianproject-ops/terraform-aws-account-baseline-root?ref=main"
+  }
+  ```
+
+  ## Documentation
+
+  Docs are nice!
+
+include:
+  - docs/terraform.md
+
+contributors:
+  - name: "Abel Luck"
+    gitlab: "abelxluck"
+    gravatar: 0f605397e0ead93a68e1be26dc26481a
