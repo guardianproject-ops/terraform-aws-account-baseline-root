@@ -1,6 +1,12 @@
 ######################
 # REQUIRED VARIABLES #
 ######################
+variable "governed_regions" {
+  description = "List of AWS regions to enable LandingZone, GuardDuty, etc in"
+  type        = list(string)
+  default     = ["us-east-1", "us-west-2", "eu-west-1"]
+}
+
 variable "child_accounts" {
   description = <<-EOT
     Map of child accounts to create. The map key is the name of the account and
@@ -10,7 +16,8 @@ variable "child_accounts" {
     - email: Email address for the account.
 
     Optional keys for each object:
-    - is_logs_account: Set to true to mark this account as the "logs" account for aggregating AWS Config and CloudTrail data
+    - is_logs_account: Set to true to mark this account as the Control Tower log archive account
+    - is_audit_account: Set to true to mark this account as the Control Tower audit account
     - parent_id: Parent Organizational Unit ID or Root ID for the account
     - role_name: Name of IAM role that Organizations automatically preconfigures in the new member account
     - iam_user_access_to_billing: Set to 'ALLOW' or 'DENY' to control IAM user access to billing information
@@ -37,17 +44,37 @@ variable "child_accounts" {
     email                      = string
     close_on_deletion          = optional(bool, false)
     is_logs_account            = optional(bool, false)
+    is_audit_account           = optional(bool, false)
     parent_id                  = optional(string, null)
     role_name                  = optional(string, null)
     iam_user_access_to_billing = optional(string, true)
     enable_config_rules        = optional(bool, true)
     tags                       = optional(map(string), {})
   }))
+  validation {
+    condition     = length(keys(var.child_accounts)) > 0
+    error_message = "At least one child account must be defined"
+  }
+  validation {
+    condition     = length([for name, account in var.child_accounts : account if account.is_audit_account]) == 1
+    error_message = "Exactly one child account must be marked as the audit account"
+  }
+  validation {
+    condition     = length([for name, account in var.child_accounts : account if account.is_logs_account]) == 1
+    error_message = "Exactly one child account must be marked as the logs account"
+  }
 }
 
 
+variable "guardduty_delegation_enabled" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+Whether to delegate GuardDuty administration to the GuardDuty delegated admin account.
+EOT
+}
 variable "guardduty_admin_account_id" {
-  description = "The AWS account ID of the GuardDuty delegated admin/master account, probably your Audit account created by Control Tower"
+  description = "The AWS account ID of the GuardDuty delegated admin account, probably your Audit account created by Control Tower"
   type        = string
   default     = null
 }
@@ -113,5 +140,5 @@ variable "create_organization" {
     import' to import you existing Organization.
   EOT
   type        = bool
-  default     = false
+  default     = true
 }
