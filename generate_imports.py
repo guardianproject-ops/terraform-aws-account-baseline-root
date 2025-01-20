@@ -146,17 +146,17 @@ def list_accounts(profile_name):
     return sorted(accounts, key=lambda k: k["Name"])
 
 
-def generate_import_blocks(accounts, org_id):
+def generate_org_imports(import_prefix, accounts, org_id):
     imports = [
         f"""import {{
-  to = module.root_baseline.module.organization.aws_organizations_organization.root[0]
+  to = {import_prefix}.module.organization.aws_organizations_organization.root[0]
   id = "{org_id}"
         }}"""
     ]
     for account in accounts:
         account_key = account["Name"]
         import_block = f"""import {{
-  to = module.root_baseline.module.organization.aws_organizations_account.child_accounts["{account_key}"]
+  to = {import_prefix}.module.organization.aws_organizations_account.child_accounts["{account_key}"]
   id = "{account["Id"]}"
 }}"""
         imports.append(import_block)
@@ -208,8 +208,9 @@ def generate_child_accounts_var(accounts):
     return "\n".join(var_lines)
 
 
-def generate_landing_zone_imports(accounts, lz_args):
+def generate_landing_zone_imports(import_prefix, accounts, lz_args):
     args = lz_args | {
+        "import_prefix": import_prefix,
         "log_archive_id": [
             account["Id"] for account in accounts if account.get("is_logs_account")
         ][0],
@@ -221,87 +222,87 @@ def generate_landing_zone_imports(accounts, lz_args):
     template = Template(
         """
 import {
-  to = module.root_baseline.module.landing_zone.aws_organizations_account.log_archive
+  to = ${import_prefix}.module.landing_zone.aws_organizations_account.log_archive
   id = "${log_archive_id}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_organizations_account.audit
+  to = ${import_prefix}.module.landing_zone.aws_organizations_account.audit
   id = "${audit_id}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role.controltower_admin
+  to = ${import_prefix}.module.landing_zone.aws_iam_role.controltower_admin
   id = "AWSControlTowerAdmin"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_policy.controltower_admin_policy
+  to = ${import_prefix}.module.landing_zone.aws_iam_policy.controltower_admin_policy
   id = "${admin_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role_policy_attachment.controltower_admin_policy_attachment
+  to = ${import_prefix}.module.landing_zone.aws_iam_role_policy_attachment.controltower_admin_policy_attachment
   id = "AWSControlTowerAdmin/${admin_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role.cloudtrail
+  to = ${import_prefix}.module.landing_zone.aws_iam_role.cloudtrail
   id = "AWSControlTowerCloudTrailRole"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_policy.cloudtrail_policy
+  to = ${import_prefix}.module.landing_zone.aws_iam_policy.cloudtrail_policy
   id = "${cloudtrail_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role_policy_attachment.cloudtrail_policy_attachment
+  to = ${import_prefix}.module.landing_zone.aws_iam_role_policy_attachment.cloudtrail_policy_attachment
   id = "AWSControlTowerCloudTrailRole/${cloudtrail_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role.stackset
+  to = ${import_prefix}.module.landing_zone.aws_iam_role.stackset
   id = "AWSControlTowerStackSetRole"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_policy.stackset_policy
+  to = ${import_prefix}.module.landing_zone.aws_iam_policy.stackset_policy
   id = "${stackset_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role_policy_attachment.stackset_policy_attachment
+  to = ${import_prefix}.module.landing_zone.aws_iam_role_policy_attachment.stackset_policy_attachment
   id =  "AWSControlTowerStackSetRole/${stackset_policy_arn}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role.config_aggregator
+  to = ${import_prefix}.module.landing_zone.aws_iam_role.config_aggregator
   id = "AWSControlTowerConfigAggregatorRoleForOrganizations"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_iam_role_policy_attachment.config_aggregator
+  to = ${import_prefix}.module.landing_zone.aws_iam_role_policy_attachment.config_aggregator
   id =  "AWSControlTowerConfigAggregatorRoleForOrganizations/arn:aws:iam::aws:policy/service-role/AWSConfigRoleForOrganizations"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_kms_key.controltower[0]
+  to = ${import_prefix}.module.landing_zone.aws_kms_key.controltower[0]
   id = "${kms_key_id}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_kms_alias.controltower[0]
+  to = ${import_prefix}.module.landing_zone.aws_kms_alias.controltower[0]
   id = "alias/control_tower_key"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_kms_key_policy.controltower[0]
+  to = ${import_prefix}.module.landing_zone.aws_kms_key_policy.controltower[0]
   id = "${kms_key_id}"
 }
 
 import {
-  to = module.root_baseline.module.landing_zone.aws_controltower_landing_zone.zone
+  to = ${import_prefix}.module.landing_zone.aws_controltower_landing_zone.zone
   id = "${landing_zone_arn}"
 }
     """
@@ -329,6 +330,12 @@ def main():
         description="Generate Terraform imports and variables for AWS accounts"
     )
     parser.add_argument("--profile", required=False, help="AWS profile name")
+    parser.add_argument(
+        "--import-prefix",
+        required=False,
+        default="",
+        help="The module name prefix to add to all terraform imports.",
+    )
     parser.add_argument(
         "--skip-account",
         required=False,
@@ -365,7 +372,11 @@ def main():
 
         # Generate imports.tf
         with open("imports.tf", "w") as f:
-            f.write(generate_import_blocks(accounts, get_organization_id(profile)))
+            f.write(
+                generate_org_imports(
+                    args.import_prefix, accounts, get_organization_id(profile)
+                )
+            )
             print("Generated imports.tf")
 
         # Generate child_accounts.tf
@@ -375,7 +386,9 @@ def main():
 
         # Generate lz_imports.tf
         with open("lz_imports.tf", "w") as f:
-            f.write(generate_landing_zone_imports(accounts, lz_args))
+            f.write(
+                generate_landing_zone_imports(args.import_prefix, accounts, lz_args)
+            )
             print("Generated lz_imports.tf")
 
         run_terraform_fmt()

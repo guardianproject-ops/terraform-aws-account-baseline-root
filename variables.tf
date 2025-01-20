@@ -73,8 +73,9 @@ variable "guardduty_delegation_enabled" {
 Whether to delegate GuardDuty administration to the GuardDuty delegated admin account.
 EOT
 }
+
 variable "guardduty_admin_account_id" {
-  description = "The AWS account ID of the GuardDuty delegated admin account, probably your Audit account created by Control Tower"
+  description = "The AWS account ID of the GuardDuty delegated admin account, if not specified, defaults to the Audit account created by Control Tower"
   type        = string
   default     = null
 }
