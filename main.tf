@@ -1,10 +1,13 @@
 locals {
-  enabled             = module.this.enabled
-  guardduty_enabled   = local.enabled && var.guardduty_delegation_enabled
-  securityhub_enabled = local.enabled && var.securityhub_delegation_enabled
-  audit_account       = [for name, account in var.child_accounts : account if account.is_audit_account][0]
-  logs_account        = [for name, account in var.child_accounts : account if account.is_logs_account][0]
-  audit_account_name  = [for name, account in var.child_accounts : name if account.is_audit_account][0]
+  enabled                                = module.this.enabled
+  guardduty_enabled                      = local.enabled && var.guardduty_delegation_enabled
+  securityhub_enabled                    = local.enabled && var.securityhub_delegation_enabled
+  auditmanager_delegation_enabled        = local.enabled && var.auditmanager_delegation_enabled
+  iam_access_analyzer_delegation_enabled = local.enabled && var.iam_access_analyzer_delegation_enabled
+  audit_account                          = [for name, account in var.child_accounts : account if account.is_audit_account][0]
+  logs_account                           = [for name, account in var.child_accounts : account if account.is_logs_account][0]
+  audit_account_name                     = [for name, account in var.child_accounts : name if account.is_audit_account][0]
+  audit_account_id                       = module.organization.child_account_ids[local.audit_account_name]
 }
 
 module "landing_zone" {
@@ -30,12 +33,31 @@ module "organization" {
 # Since we are are in the AWS Org management account, delegate GuardDuty to our Control Tower Audit account
 resource "aws_guardduty_organization_admin_account" "this" {
   count            = local.guardduty_enabled ? 1 : 0
-  admin_account_id = var.guardduty_admin_account_id != null ? var.guardduty_admin_account_id : module.organization.child_account_ids[local.audit_account_name]
+  admin_account_id = var.guardduty_admin_account_id != null ? var.guardduty_admin_account_id : local.audit_account_id
 }
 
 # Since we are are in the AWS Org management account, delegate SecurityHub to our Control Tower Audit account
 resource "aws_securityhub_organization_admin_account" "default" {
   count            = local.securityhub_enabled ? 1 : 0
-  admin_account_id = var.securityhub_admin_account_id != null ? var.securityhub_admin_account_id : module.organization.child_account_ids[local.audit_account_name]
+  admin_account_id = var.securityhub_admin_account_id != null ? var.securityhub_admin_account_id : local.audit_account_id
   depends_on       = [module.organization]
 }
+
+resource "aws_auditmanager_account_registration" "this" {
+  count                   = local.auditmanager_delegation_enabled == true ? 1 : 0
+  delegated_admin_account = local.audit_account_id
+  deregister_on_destroy   = true
+}
+
+resource "aws_organizations_delegated_administrator" "iam_access_analyzer" {
+  count             = local.iam_access_analyzer_delegation_enabled == true ? 1 : 0
+  account_id        = local.audit_account_id
+  service_principal = "access-analyzer.amazonaws.com"
+}
+
+#resource "aws_iam_service_linked_role" "access_analyzer" {
+#  count            = local.iam_access_analyzer_delegation_enabled == true ? 1 : 0
+#  aws_service_name = "access-analyzer.amazonaws.com"
+#  description      = "Service-Linked Role for Access Analyzer, used by the landing zone"
+#  tags             = module.this.tags
+#}

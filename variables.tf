@@ -88,6 +88,7 @@ variable "organizations_aws_service_access_principals" {
   EOT
   type        = list(string)
   default = [
+    "auditmanager.amazonaws.com",
     "access-analyzer.amazonaws.com",
     "account.amazonaws.com",
     "backup.amazonaws.com",
@@ -169,4 +170,20 @@ variable "securityhub_admin_account_id" {
   description = "The AWS account ID of the SecurityHub delegated admin account, if not specified, defaults to the Audit account created by Control Tower"
   type        = string
   default     = null
+}
+
+variable "auditmanager_delegation_enabled" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+Whether to delegate AuditManager administration to the delegated admin account.
+EOT
+}
+
+variable "iam_access_analyzer_delegation_enabled" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+Whether to delegate IAM Access Analyzer administration to the delegated admin account.
+EOT
 }
