@@ -1,9 +1,18 @@
 locals {
-  enabled            = module.this.enabled
-  guardduty_enabled  = local.enabled && var.guardduty_delegation_enabled
-  audit_account      = [for name, account in var.child_accounts : account if account.is_audit_account][0]
-  logs_account       = [for name, account in var.child_accounts : account if account.is_logs_account][0]
-  audit_account_name = [for name, account in var.child_accounts : name if account.is_audit_account][0]
+  enabled             = module.this.enabled
+  guardduty_enabled   = local.enabled && var.guardduty_delegation_enabled
+  securityhub_enabled = local.enabled && var.securityhub_delegation_enabled
+  audit_account       = [for name, account in var.child_accounts : account if account.is_audit_account][0]
+  logs_account        = [for name, account in var.child_accounts : account if account.is_logs_account][0]
+  audit_account_name  = [for name, account in var.child_accounts : name if account.is_audit_account][0]
+}
+
+module "landing_zone" {
+  source                             = "guardianproject-ops/control-tower-landing-zone/aws"
+  version                            = "0.0.1"
+  email_address_account_audit        = local.audit_account.email
+  email_address_account_log_archiver = local.logs_account.email
+  governed_regions                   = var.governed_regions
 }
 
 module "organization" {
@@ -24,10 +33,9 @@ resource "aws_guardduty_organization_admin_account" "this" {
   admin_account_id = var.guardduty_admin_account_id != null ? var.guardduty_admin_account_id : module.organization.child_account_ids[local.audit_account_name]
 }
 
-module "landing_zone" {
-  source                             = "guardianproject-ops/control-tower-landing-zone/aws"
-  version                            = "0.0.1"
-  email_address_account_audit        = local.audit_account.email
-  email_address_account_log_archiver = local.logs_account.email
-  governed_regions                   = var.governed_regions
+# Since we are are in the AWS Org management account, delegate SecurityHub to our Control Tower Audit account
+resource "aws_securityhub_organization_admin_account" "default" {
+  count            = local.securityhub_enabled ? 1 : 0
+  admin_account_id = var.securityhub_admin_account_id != null ? var.securityhub_admin_account_id : module.organization.child_account_ids[local.audit_account_name]
+  depends_on       = [module.organization]
 }

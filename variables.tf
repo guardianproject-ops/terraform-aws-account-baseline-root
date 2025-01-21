@@ -4,7 +4,6 @@
 variable "governed_regions" {
   description = "List of AWS regions to enable LandingZone, GuardDuty, etc in"
   type        = list(string)
-  default     = ["us-east-1", "us-west-2", "eu-west-1"]
 }
 
 variable "child_accounts" {
@@ -88,7 +87,20 @@ variable "organizations_aws_service_access_principals" {
     https://docs.aws.amazon.com/organizations/latest/userguide/orgs_integrate_services.html
   EOT
   type        = list(string)
-  default     = ["cloudtrail.amazonaws.com", "config-multiaccountsetup.amazonaws.com", "config.amazonaws.com", "access-analyzer.amazonaws.com"]
+  default = [
+    "access-analyzer.amazonaws.com",
+    "account.amazonaws.com",
+    "backup.amazonaws.com",
+    "cloudtrail.amazonaws.com",
+    "config.amazonaws.com",
+    "controltower.amazonaws.com",
+    "member.org.stacksets.cloudformation.amazonaws.com",
+    "sso.amazonaws.com",
+    "guardduty.amazonaws.com",
+    "malware-protection.guardduty.amazonaws.com",
+    "securityhub.amazonaws.com",
+    "access-analyzer.amazonaws.com",
+  ]
 }
 
 variable "organizations_default_iam_user_access_to_billing" {
@@ -142,4 +154,19 @@ variable "create_organization" {
   EOT
   type        = bool
   default     = true
+}
+
+
+variable "securityhub_delegation_enabled" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+Whether to delegate SecurityHub administration to the SecurityHub delegated admin account.
+EOT
+}
+
+variable "securityhub_admin_account_id" {
+  description = "The AWS account ID of the SecurityHub delegated admin account, if not specified, defaults to the Audit account created by Control Tower"
+  type        = string
+  default     = null
 }
