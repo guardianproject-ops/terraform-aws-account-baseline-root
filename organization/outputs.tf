@@ -37,3 +37,19 @@ output "child_account_ids" {
   }
   sensitive = true
 }
+
+output "child_ou_ids" {
+  description = "A map of all the OUs created by this module. The keys are the names of the OUs and the values are the IDs"
+  value = merge(
+    { for ou in aws_organizations_organizational_unit.ous : ou.name => ou.id },
+    { for ou in aws_organizations_organizational_unit.child_ous : ou.name => ou.id }
+  )
+}
+
+output "child_ou_arns" {
+  description = "A map of all the OUs created by this module. The keys are the names of the OUs and the values are the ARNs"
+  value = merge(
+    { for ou in aws_organizations_organizational_unit.ous : ou.name => ou.arn },
+    { for ou in aws_organizations_organizational_unit.child_ous : ou.name => ou.arn }
+  )
+}

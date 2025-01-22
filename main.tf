@@ -11,8 +11,9 @@ locals {
 }
 
 module "landing_zone" {
-  source                             = "guardianproject-ops/control-tower-landing-zone/aws"
-  version                            = "0.0.1"
+  source  = "guardianproject-ops/control-tower-landing-zone/aws"
+  version = "0.0.1"
+  #context                            = module.this.context
   email_address_account_audit        = local.audit_account.email
   email_address_account_log_archiver = local.logs_account.email
   governed_regions                   = var.governed_regions
@@ -20,7 +21,9 @@ module "landing_zone" {
 
 module "organization" {
   source                                           = "./organization"
+  context                                          = module.this.context
   child_accounts                                   = var.child_accounts
+  child_ous                                        = var.child_ous
   create_organization                              = var.create_organization
   organizations_aws_service_access_principals      = var.organizations_aws_service_access_principals
   organizations_default_iam_user_access_to_billing = var.organizations_default_iam_user_access_to_billing
@@ -28,6 +31,14 @@ module "organization" {
   organizations_enabled_policy_types               = var.organizations_enabled_policy_types
   organizations_feature_set                        = var.organizations_feature_set
   tags                                             = var.organizations_default_tags
+}
+
+module "control_tower_controls" {
+  source           = "./control-tower-controls"
+  context          = module.this.context
+  guardrails       = var.controltower_guardrails
+  ou_names_to_arns = module.organization.child_ou_arns
+  depends_on       = [module.organization, module.landing_zone]
 }
 
 # Since we are are in the AWS Org management account, delegate GuardDuty to our Control Tower Audit account

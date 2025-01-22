@@ -56,6 +56,16 @@ variable "organizations_feature_set" {
   default     = "ALL"
 }
 
+variable "child_ous" {
+  description = <<-EOT
+Map of the child organizational units to create and manage. The map key is the name of the OU, and the value is an object containing configuration variables for the OU.
+EOT
+
+  type = map(object({
+    tags      = optional(map(string), {})
+    parent_ou = optional(string, null)
+  }))
+}
 
 variable "child_accounts" {
   description = <<-EOT
@@ -68,6 +78,7 @@ variable "child_accounts" {
     Optional keys for each object:
     - is_logs_account: Set to true to mark this account as the "logs" account for aggregating AWS Config and CloudTrail data
     - parent_id: Parent Organizational Unit ID or Root ID for the account
+    - parent_ou: The parent OU name. Null signifies the root. parent_id will take precedance over this.
     - role_name: Name of IAM role that Organizations automatically preconfigures in the new member account
     - iam_user_access_to_billing: Set to 'ALLOW' or 'DENY' to control IAM user access to billing information
     - enable_config_rules: Set to true to enable org-level AWS Config Rules for this child account
@@ -94,6 +105,7 @@ variable "child_accounts" {
     close_on_deletion          = optional(bool, false)
     is_logs_account            = optional(bool, false)
     parent_id                  = optional(string, null)
+    parent_ou                  = optional(string, null)
     role_name                  = optional(string, null)
     iam_user_access_to_billing = optional(string, true)
     enable_config_rules        = optional(bool, true)

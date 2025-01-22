@@ -6,6 +6,17 @@ variable "governed_regions" {
   type        = list(string)
 }
 
+variable "child_ous" {
+  description = <<-EOT
+Map of the child organizational units to create and manage. The map key is the name of the OU, and the value is an object containing configuration variables for the OU.
+EOT
+
+  type = map(object({
+    tags      = optional(map(string), {})
+    parent_ou = optional(string, null)
+  }))
+}
+
 variable "child_accounts" {
   description = <<-EOT
     Map of child accounts to create. The map key is the name of the account and
@@ -18,6 +29,7 @@ variable "child_accounts" {
     - is_logs_account: Set to true to mark this account as the Control Tower log archive account
     - is_audit_account: Set to true to mark this account as the Control Tower audit account
     - parent_id: Parent Organizational Unit ID or Root ID for the account
+    - parent_ou: The parent OU name. Null signifies the root. parent_id will take precedance over this.
     - role_name: Name of IAM role that Organizations automatically preconfigures in the new member account
     - iam_user_access_to_billing: Set to 'ALLOW' or 'DENY' to control IAM user access to billing information
     - enable_config_rules: Set to true to enable org-level AWS Config Rules for this child account
@@ -45,6 +57,7 @@ variable "child_accounts" {
     is_logs_account            = optional(bool, false)
     is_audit_account           = optional(bool, false)
     parent_id                  = optional(string, null)
+    parent_ou                  = optional(string, null)
     role_name                  = optional(string, null)
     iam_user_access_to_billing = optional(string, true)
     enable_config_rules        = optional(bool, true)
@@ -186,4 +199,14 @@ variable "iam_access_analyzer_delegation_enabled" {
   description = <<-EOT
 Whether to delegate IAM Access Analyzer administration to the delegated admin account.
 EOT
+}
+
+variable "controltower_guardrails" {
+  type = list(object({
+    control_name   = string
+    is_global_type = optional(bool, true)
+    ou_name        = string
+    parameters     = optional(map(string), {})
+  }))
+  description = "Configuration of AWS Control Tower Guardrails for the whole organization"
 }
