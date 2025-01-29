@@ -1,3 +1,4 @@
+data "aws_caller_identity" "this" {}
 locals {
   enabled                                = module.this.enabled
   guardduty_enabled                      = local.enabled && var.guardduty_delegation_enabled
@@ -6,8 +7,12 @@ locals {
   iam_access_analyzer_delegation_enabled = local.enabled && var.iam_access_analyzer_delegation_enabled
   audit_account                          = [for name, account in var.child_accounts : account if account.is_audit_account][0]
   logs_account                           = [for name, account in var.child_accounts : account if account.is_logs_account][0]
+  log_account_name                       = [for name, account in var.child_accounts : name if account.is_logs_account][0]
   audit_account_name                     = [for name, account in var.child_accounts : name if account.is_audit_account][0]
   audit_account_id                       = module.organization.child_account_ids[local.audit_account_name]
+  log_account_id                         = module.organization.child_account_ids[local.log_account_name]
+  management_account_id                  = data.aws_caller_identity.this.account_id
+
 }
 
 module "landing_zone" {

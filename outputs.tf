@@ -13,3 +13,12 @@ output "guardrails" {
 output "global_controls" {
   value = module.control_tower_controls.global_controls
 }
+
+output "control_tower_account_ids" {
+  value = {
+    audit      = local.audit_account_id
+    management = local.management_account_id
+    logging    = local.log_account_id
+  }
+
+}
