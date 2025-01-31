@@ -33,6 +33,37 @@ def run_terraform_fmt():
         sys.exit(1)
 
 
+def get_provisioned_product_by_account_id(account_id):
+    sc_client = boto3.client("servicecatalog")
+    response = sc_client.search_provisioned_products(
+        Filters={"SearchQuery": [f"physicalId:{account_id}"]}
+    )
+
+    if response["ProvisionedProducts"]:
+        product = response["ProvisionedProducts"][0]
+        return product["Id"]
+
+    return None
+
+
+def get_provisioned_product_by_account_name(account_name):
+    sc_client = boto3.client("servicecatalog")
+    try:
+        provisioned_name = f"{account_name}"
+
+        response = sc_client.search_provisioned_products(
+            Filters={"SearchQuery": [f"name:{provisioned_name}"]}
+        )
+
+        if response["ProvisionedProducts"]:
+            product = response["ProvisionedProducts"][0]
+            return product["Id"]
+        return None
+
+    except sc_client.exceptions.ResourceNotFoundException:
+        return None
+
+
 def get_admin_policy_arn() -> Optional[str]:
     """Get the ARN of the AWSControlTowerAdminPolicy."""
     try:
@@ -146,18 +177,26 @@ def list_accounts(profile_name):
     return sorted(accounts, key=lambda k: k["Name"])
 
 
-def generate_org_imports(import_prefix, accounts, org_id):
+def generate_org_imports(import_prefix, org_id):
     imports = [
         f"""import {{
   to = {import_prefix}.module.organization.aws_organizations_organization.root[0]
   id = "{org_id}"
         }}"""
     ]
+    return "\n\n".join(imports)
+
+
+def generate_ct_account_imports(import_prefix, accounts, account_to_pp):
+    imports = [""]
     for account in accounts:
+        account_id = account["Id"]
         account_key = account["Name"]
+        pp_id = account_to_pp.get(account_id)
         import_block = f"""import {{
-  to = {import_prefix}.module.organization.aws_organizations_account.child_accounts["{account_key}"]
-  id = "{account["Id"]}"
+  # {account_key} - {account_id}
+  to = {import_prefix}.module.accounts.controltower_aws_account.account["{account_key}"]
+  id = "{pp_id}"
 }}"""
         imports.append(import_block)
     return "\n\n".join(imports)
@@ -331,6 +370,12 @@ def main():
     )
     parser.add_argument("--profile", required=False, help="AWS profile name")
     parser.add_argument(
+        "--management-account-id",
+        required=True,
+        type=str,
+        help="Your management account ID",
+    )
+    parser.add_argument(
         "--import-prefix",
         required=False,
         default="",
@@ -352,49 +397,59 @@ def main():
             print("Either pass --profile or set AWS_PROFILE")
             sys.exit(1)
 
-    try:
-        if has_cache():
-            accounts = load_cache()
-        else:
-            accounts = list_accounts(profile)
-            save_cache(accounts)
+    if has_cache():
+        accounts = load_cache()
+    else:
+        accounts = list_accounts(profile)
+        save_cache(accounts)
 
-        accounts = [a for a in accounts if a["Name"] not in args.skip_account]
-        accounts = parse_accounts(accounts)
+    accounts = [a for a in accounts if a["Name"] not in args.skip_account]
+    accounts = parse_accounts(accounts)
+    non_core_accounts = [
+        a
+        for a in accounts
+        if not (
+            a.get("is_audit_account")
+            or a.get("is_logs_account")
+            or a.get("Id") == args.management_account_id
+        )
+    ]
+    account_to_pp = {}
+    for account in non_core_accounts:
+        account_to_pp[account["Id"]] = get_provisioned_product_by_account_id(
+            account["Id"]
+        )
 
-        lz_args = {
-            "admin_policy_arn": get_admin_policy_arn(),
-            "cloudtrail_policy_arn": get_cloudtrail_policy_arn(),
-            "stackset_policy_arn": get_stackset_policy_arn(),
-            "kms_key_id": get_kms_key_id(),
-            "landing_zone_arn": get_landing_zone_arn(),
-        }
+    lz_args = {
+        "admin_policy_arn": get_admin_policy_arn(),
+        "cloudtrail_policy_arn": get_cloudtrail_policy_arn(),
+        "stackset_policy_arn": get_stackset_policy_arn(),
+        "kms_key_id": get_kms_key_id(),
+        "landing_zone_arn": get_landing_zone_arn(),
+    }
 
-        # Generate imports.tf
-        with open("imports.tf", "w") as f:
-            f.write(
-                generate_org_imports(
-                    args.import_prefix, accounts, get_organization_id(profile)
-                )
+    # Generate imports.tf
+    with open("imports.tf", "w") as f:
+        f.write(
+            generate_org_imports(args.import_prefix, get_organization_id(profile))
+            + generate_ct_account_imports(
+                args.import_prefix, non_core_accounts, account_to_pp
             )
-            print("Generated imports.tf")
+        )
 
-        # Generate child_accounts.tf
-        with open("child_accounts.tf", "w") as f:
-            f.write(generate_child_accounts_var(accounts))
-            print("Generated child_accounts.tf")
+        print("Generated imports.tf")
 
-        # Generate lz_imports.tf
-        with open("lz_imports.tf", "w") as f:
-            f.write(
-                generate_landing_zone_imports(args.import_prefix, accounts, lz_args)
-            )
-            print("Generated lz_imports.tf")
+    # Generate child_accounts.tf
+    # with open("child_accounts.tf", "w") as f:
+    #     f.write(generate_child_accounts_var(accounts))
+    #     print("Generated child_accounts.tf")
 
-        run_terraform_fmt()
-    except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+    # Generate lz_imports.tf
+    with open("lz_imports.tf", "w") as f:
+        f.write(generate_landing_zone_imports(args.import_prefix, accounts, lz_args))
+        print("Generated lz_imports.tf")
+
+    run_terraform_fmt()
 
 
 if __name__ == "__main__":

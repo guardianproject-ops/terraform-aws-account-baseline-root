@@ -12,12 +12,3 @@ variable "guardrails" {
   }))
   description = "Configuration of AWS Control Tower Guardrails for the whole organization"
 }
-
-#variable "controls" {
-#  type = list(object({
-#    control_names  = list(string)
-#    ou_names       = list(string)
-#    is_global_type = optional(bool, true)
-#  }))
-#  description = "Configuration of AWS Control Tower Guardrails for the whole organization"
-#}

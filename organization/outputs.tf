@@ -30,14 +30,6 @@ output "master_account_email" {
   sensitive   = true
 }
 
-output "child_account_ids" {
-  description = "A map of all accounts created by this module (NOT including the root account). The keys are the names of the accounts and the values are the IDs."
-  value = {
-    for account in aws_organizations_account.child_accounts : account.name => account.id
-  }
-  sensitive = true
-}
-
 output "child_ou_ids" {
   description = "A map of all the OUs created by this module. The keys are the names of the OUs and the values are the IDs"
   value = merge(

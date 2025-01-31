@@ -55,10 +55,4 @@ locals {
     )
   )
 
-  account_name_to_ou_id = { for name, account in var.child_accounts : name =>
-    account.parent_id != null ? account.parent_id :
-    account.parent_ou != null ? aws_organizations_organizational_unit.ous[account.parent_ou].id : local.root_id
-  }
-
-
 }
