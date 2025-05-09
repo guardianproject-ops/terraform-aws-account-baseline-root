@@ -77,3 +77,12 @@ resource "aws_organizations_delegated_administrator" "iam_access_analyzer" {
 #  description      = "Service-Linked Role for Access Analyzer, used by the landing zone"
 #  tags             = module.this.tags
 #}
+
+module "break_glass" {
+  source = "git::https://gitlab.com/guardianproject-ops/terraform-aws-account-break-glass//modules/target?ref=v0.0.1"
+
+  allow_break_glass      = var.break_glass.enabled
+  break_glass_principals = var.break_glass.principals
+  break_glass_policy_arn = var.break_glass.policy_arn
+  break_glass_role_name  = var.break_glass.role_name
+}
